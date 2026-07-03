@@ -17,6 +17,8 @@ namespace BeyondFutureOne.TuioClient
         [SerializeField] private Color _manualActiveColor = new Color(0.95f, 0.65f, 0.22f, 0.78f);
         [SerializeField] private Color _tuioActiveColor = new Color(0.1f, 0.72f, 0.42f, 0.92f);
         [SerializeField] private TMP_Text _label;
+        [SerializeField] private Vector2 _labelSize = new Vector2(200f, 86f);
+        [SerializeField] private float _labelGap = 16f;
 
         private RectTransform _rectTransform;
         private Image _image;
@@ -55,13 +57,26 @@ namespace BeyondFutureOne.TuioClient
 
         public void Configure(int tokenId, bool manualInteractionEnabled, bool debugVisible)
         {
+            Configure(tokenId, manualInteractionEnabled, debugVisible, _labelSize, _labelGap);
+        }
+
+        public void Configure(int tokenId, bool manualInteractionEnabled, bool debugVisible, Vector2 labelSize, float labelGap)
+        {
             _tokenId = Mathf.Clamp(tokenId, 1, 20);
             _manualInteractionEnabled = manualInteractionEnabled;
             _debugVisible = debugVisible;
+            SetLabelLayout(labelSize, labelGap);
             _isManuallyActive = false;
             CacheReferences();
             EnsureLabel();
             RefreshVisual();
+        }
+
+        public void SetLabelLayout(Vector2 labelSize, float labelGap)
+        {
+            _labelSize = new Vector2(Mathf.Max(24f, labelSize.x), Mathf.Max(16f, labelSize.y));
+            _labelGap = Mathf.Max(0f, labelGap);
+            ApplyLabelLayout();
         }
 
         public void SetDebugVisible(bool visible)
@@ -189,22 +204,47 @@ namespace BeyondFutureOne.TuioClient
                 return;
             }
 
-            var labelObject = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            var labelObject = new GameObject($"TUIO 1.1 Token {_tokenId:00} Label", typeof(RectTransform), typeof(TextMeshProUGUI));
             labelObject.transform.SetParent(transform, false);
-            var labelTransform = (RectTransform)labelObject.transform;
-            labelTransform.anchorMin = Vector2.zero;
-            labelTransform.anchorMax = Vector2.one;
-            labelTransform.offsetMin = Vector2.zero;
-            labelTransform.offsetMax = Vector2.zero;
-
             _label = labelObject.GetComponent<TextMeshProUGUI>();
-            _label.alignment = TextAlignmentOptions.Center;
+
+            ApplyLabelLayout();
+            _label.alignment = TextAlignmentOptions.MidlineLeft;
             _label.fontSize = 13f;
             _label.enableAutoSizing = true;
             _label.fontSizeMin = 5f;
             _label.fontSizeMax = 16f;
             _label.color = Color.white;
             _label.raycastTarget = false;
+            ApplyLabelLayout();
+        }
+
+        private void ApplyLabelLayout()
+        {
+            if (_label == null)
+            {
+                return;
+            }
+
+            CacheReferences();
+            var labelTransform = (RectTransform)_label.transform;
+            if (labelTransform.parent != transform)
+            {
+                labelTransform.SetParent(transform, false);
+            }
+
+            var tokenWidth = _rectTransform != null ? _rectTransform.rect.width : 86f;
+            var rightEdgeOffset = tokenWidth * (1f - (_rectTransform != null ? _rectTransform.pivot.x : 0.5f));
+            var labelOffset = Quaternion.Inverse(_rectTransform != null ? _rectTransform.localRotation : Quaternion.identity) * new Vector3(rightEdgeOffset + _labelGap, 0f, 0f);
+
+            labelTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            labelTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            labelTransform.pivot = new Vector2(0f, 0.5f);
+            labelTransform.anchoredPosition = labelOffset;
+            labelTransform.sizeDelta = _labelSize;
+            labelTransform.localRotation = Quaternion.Inverse(_rectTransform != null ? _rectTransform.localRotation : Quaternion.identity);
+            labelTransform.localScale = Vector3.one;
+            _label.alignment = TextAlignmentOptions.MidlineLeft;
         }
 
 
@@ -266,6 +306,7 @@ namespace BeyondFutureOne.TuioClient
 
             if (_label != null)
             {
+                ApplyLabelLayout();
                 _label.enabled = shouldRender;
                 var normalizedPosition = GetNormalizedPosition();
                 var rotationDegrees = Mathf.Repeat(_rectTransform.localEulerAngles.z, 360f);

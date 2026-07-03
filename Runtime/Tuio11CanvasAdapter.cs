@@ -26,6 +26,9 @@ namespace BeyondFutureOne.TuioClient
         [SerializeField] private RectTransform _tokenRoot;
         [SerializeField] private CanvasGroup _tokenRootCanvasGroup;
         [SerializeField] private Vector2 _tokenSize = new Vector2(86f, 86f);
+        [SerializeField] private Vector2 _debugLabelSize = new Vector2(200f, 86f);
+        [SerializeField] private float _debugLabelGap = 16f;
+        [SerializeField] private Vector2 _tokenGridPadding = new Vector2(40f, 32f);
 
         [Header("Debug Tokens")]
         [SerializeField, Range(MinSupportedTokenId, MaxSupportedTokenId)] private int _firstTokenId = 1;
@@ -241,6 +244,11 @@ namespace BeyondFutureOne.TuioClient
 
             _tokenSize.x = Mathf.Max(16f, _tokenSize.x);
             _tokenSize.y = Mathf.Max(16f, _tokenSize.y);
+            _debugLabelSize.x = Mathf.Max(24f, _debugLabelSize.x);
+            _debugLabelSize.y = Mathf.Max(16f, _debugLabelSize.y);
+            _debugLabelGap = Mathf.Max(0f, _debugLabelGap);
+            _tokenGridPadding.x = Mathf.Max(0f, _tokenGridPadding.x);
+            _tokenGridPadding.y = Mathf.Max(0f, _tokenGridPadding.y);
             _recentMessageWindowSeconds = Mathf.Max(0.25f, _recentMessageWindowSeconds);
         }
 
@@ -453,6 +461,7 @@ namespace BeyondFutureOne.TuioClient
             var tokens = _tokenRoot.GetComponentsInChildren<Tuio11CanvasDebugToken>(true);
             foreach (var token in tokens)
             {
+                token.SetLabelLayout(_debugLabelSize, _debugLabelGap);
                 token.SetManualInteractionEnabled(_manualInteractionEnabled);
                 token.SetDebugVisible(_displayDebugTokens);
                 token.SetDetectedVisible(_showDetectedTokens);
@@ -481,7 +490,7 @@ namespace BeyondFutureOne.TuioClient
             }
 
             var token = tokenObject.GetComponent<Tuio11CanvasDebugToken>();
-            token.Configure(tokenId, _manualInteractionEnabled, _displayDebugTokens);
+            token.Configure(tokenId, _manualInteractionEnabled, _displayDebugTokens, _debugLabelSize, _debugLabelGap);
             token.SetDetectedVisible(_showDetectedTokens);
             token.SetManualActive(false);
             return token;
@@ -493,11 +502,13 @@ namespace BeyondFutureOne.TuioClient
             var columns = Mathf.CeilToInt(Mathf.Sqrt(_lastTokenId - _firstTokenId + 1));
             var column = zeroBasedIndex % columns;
             var row = zeroBasedIndex / columns;
-            var spacing = _tokenSize + new Vector2(16f, 16f);
+            var tokenWithLabelSize = new Vector2(_tokenSize.x + _debugLabelGap + _debugLabelSize.x, Mathf.Max(_tokenSize.y, _debugLabelSize.y));
+            var spacing = tokenWithLabelSize + _tokenGridPadding;
             var totalRows = Mathf.CeilToInt((_lastTokenId - _firstTokenId + 1) / (float)columns);
             var origin = new Vector2(-(columns - 1) * spacing.x * 0.5f, (totalRows - 1) * spacing.y * 0.5f);
+            var tokenCenterOffset = new Vector2(-(_debugLabelGap + _debugLabelSize.x) * 0.5f, 0f);
 
-            return origin + new Vector2(column * spacing.x, -row * spacing.y);
+            return origin + new Vector2(column * spacing.x, -row * spacing.y) + tokenCenterOffset;
         }
 
         private bool TryGetToken(uint symbolId, out Tuio11CanvasDebugToken token)
