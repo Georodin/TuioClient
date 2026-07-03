@@ -1,0 +1,21 @@
+{
+    "name":  "com.beyond-future-one.tuio_client",
+    "version":  "0.1.0",
+    "displayName":  "Beyond TUIO Client",
+    "description":  "Standalone canvas-oriented TUIO 1.1 client with runtime debug tokens.",
+    "unity":  "2021.3",
+    "author":  {
+                   "name":  "Beyond"
+               },
+    "dependencies":  {
+                         "com.unity.textmeshpro":  "3.0.0",
+                         "com.unity.ugui":  "1.0.0",
+                         "com.unity.inputsystem":  "1.0.0"
+                     },
+    "keywords":  [
+                     "TUIO",
+                     "canvas",
+                     "tokens",
+                     "debug"
+                 ]
+}
