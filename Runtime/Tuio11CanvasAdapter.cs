@@ -42,6 +42,7 @@ namespace BeyondFutureOne.TuioClient
 
         [Header("Runtime Debug UI")]
         [SerializeField] private bool _showRuntimeDebugPanel = true;
+        [SerializeField] private GameObject _runtimeDebugPanel;
         [SerializeField] private TMP_Text _connectionStatusText;
         [SerializeField] private Button _debugVisibilityButton;
         [SerializeField] private Button _detectedVisibilityButton;
@@ -301,11 +302,8 @@ namespace BeyondFutureOne.TuioClient
             EnsureTokenRootCanvasGroup();
             ApplyDebugCanvasGroup();
             EnsureTokenPool();
-
-            foreach (var token in _tokensBySymbolId.Values)
-            {
-                token.SetDebugVisible(visible);
-            }
+            ApplyTokenPoolVisibility();
+            ApplyRuntimeDebugPanelVisibility();
 
             RefreshRuntimeDebugPanel();
         }
@@ -424,6 +422,8 @@ namespace BeyondFutureOne.TuioClient
                 var token = CreateToken(id);
                 _tokensBySymbolId[id] = token;
             }
+
+            ApplyTokenPoolVisibility();
         }
 
         private void ResolveReferences()
@@ -463,7 +463,7 @@ namespace BeyondFutureOne.TuioClient
             {
                 token.SetLabelLayout(_debugLabelSize, _debugLabelGap);
                 token.SetManualInteractionEnabled(_manualInteractionEnabled);
-                token.SetDebugVisible(_displayDebugTokens);
+                token.SetDebugVisible(_displayDebugTokens && IsTokenInPoolRange(token.TokenId));
                 token.SetDetectedVisible(_showDetectedTokens);
 
                 if (!_tokensBySymbolId.ContainsKey(token.TokenId))
@@ -473,7 +473,7 @@ namespace BeyondFutureOne.TuioClient
             }
         }
 
-        private Tuio11CanvasDebugToken CreateToken(int tokenId)
+        private Tuio11CanvasDebugToken CreateToken(int tokenId, bool? layoutOnCreate = null)
         {
             var tokenObject = new GameObject($"TUIO 1.1 Token {tokenId:00}", typeof(RectTransform), typeof(Image), typeof(Tuio11CanvasDebugToken));
             tokenObject.transform.SetParent(_tokenRoot, false);
@@ -484,13 +484,13 @@ namespace BeyondFutureOne.TuioClient
             rectTransform.pivot = new Vector2(0.5f, 0.5f);
             rectTransform.sizeDelta = _tokenSize;
 
-            if (_layoutTokensOnCreate)
+            if (layoutOnCreate ?? _layoutTokensOnCreate)
             {
                 rectTransform.anchoredPosition = GetDefaultTokenPosition(tokenId);
             }
 
             var token = tokenObject.GetComponent<Tuio11CanvasDebugToken>();
-            token.Configure(tokenId, _manualInteractionEnabled, _displayDebugTokens, _debugLabelSize, _debugLabelGap);
+            token.Configure(tokenId, _manualInteractionEnabled, _displayDebugTokens && IsTokenInPoolRange(tokenId), _debugLabelSize, _debugLabelGap);
             token.SetDetectedVisible(_showDetectedTokens);
             token.SetManualActive(false);
             return token;
@@ -511,22 +511,61 @@ namespace BeyondFutureOne.TuioClient
             return origin + new Vector2(column * spacing.x, -row * spacing.y) + tokenCenterOffset;
         }
 
-        private bool TryGetToken(uint symbolId, out Tuio11CanvasDebugToken token)
+        private static bool IsSupportedSymbolId(uint symbolId)
+        {
+            return symbolId >= MinSupportedTokenId && symbolId <= MaxSupportedTokenId && symbolId <= int.MaxValue;
+        }
+
+        private bool IsTokenInPoolRange(int tokenId)
+        {
+            return tokenId >= _firstTokenId && tokenId <= _lastTokenId;
+        }
+
+        private void ApplyTokenPoolVisibility()
+        {
+            foreach (var pair in _tokensBySymbolId)
+            {
+                pair.Value.SetDebugVisible(_displayDebugTokens && IsTokenInPoolRange(pair.Key));
+            }
+        }
+
+        private void ApplyRuntimeDebugPanelVisibility()
+        {
+            if (_runtimeDebugPanel != null)
+            {
+                _runtimeDebugPanel.SetActive(_showRuntimeDebugPanel && _displayDebugTokens);
+            }
+        }
+
+        private bool TryGetOrCreateDetectedToken(uint symbolId, out Tuio11CanvasDebugToken token)
         {
             token = null;
-            if (symbolId < _firstTokenId || symbolId > _lastTokenId || symbolId > int.MaxValue)
+            if (!IsSupportedSymbolId(symbolId))
             {
                 return false;
             }
 
-            return _tokensBySymbolId.TryGetValue((int)symbolId, out token);
+            var tokenId = (int)symbolId;
+            if (_tokensBySymbolId.TryGetValue(tokenId, out token))
+            {
+                return true;
+            }
+
+            if (!_createMissingTokens || _tokenRoot == null)
+            {
+                return false;
+            }
+
+            token = CreateDetectedToken(tokenId);
+            _tokensBySymbolId[tokenId] = token;
+            return true;
         }
 
         private void HandleObjectAdd(object sender, Tuio11Object tuioObject)
         {
             MarkObjectEvent(tuioObject);
 
-            if (!TryGetToken(tuioObject.SymbolId, out var token))
+            if (!TryGetOrCreateDetectedToken(tuioObject.SymbolId, out var token))
             {
                 return;
             }
@@ -546,7 +585,7 @@ namespace BeyondFutureOne.TuioClient
         {
             MarkObjectEvent(tuioObject);
 
-            if (!_tokensBySessionId.TryGetValue(tuioObject.SessionId, out var token) && !TryGetToken(tuioObject.SymbolId, out token))
+            if (!_tokensBySessionId.TryGetValue(tuioObject.SessionId, out var token) && !TryGetOrCreateDetectedToken(tuioObject.SymbolId, out token))
             {
                 return;
             }
@@ -626,6 +665,14 @@ namespace BeyondFutureOne.TuioClient
                 rect.yMin + anchor.y * rect.height);
         }
 
+        private Tuio11CanvasDebugToken CreateDetectedToken(int tokenId)
+        {
+            var token = CreateToken(tokenId, layoutOnCreate: false);
+            token.SetDebugVisible(false);
+            token.SetDetectedVisible(_showDetectedTokens);
+            return token;
+        }
+
         private void EnsureRuntimeDebugPanel()
         {
             if (!_showRuntimeDebugPanel || _canvas == null)
@@ -633,8 +680,11 @@ namespace BeyondFutureOne.TuioClient
                 return;
             }
 
-            if (_connectionStatusText != null && _debugVisibilityButton != null && _detectedVisibilityButton != null)
+            ResolveRuntimeDebugPanelReference();
+
+            if (_runtimeDebugPanel != null && _connectionStatusText != null && _debugVisibilityButton != null && _detectedVisibilityButton != null)
             {
+                ApplyRuntimeDebugPanelVisibility();
                 return;
             }
 
@@ -716,6 +766,23 @@ namespace BeyondFutureOne.TuioClient
             detectedButtonLabel.fontSize = 16f;
             detectedButtonLabel.color = Color.white;
             detectedButtonLabel.raycastTarget = false;
+
+            _runtimeDebugPanel = panelObject;
+            ApplyRuntimeDebugPanelVisibility();
+        }
+
+        private void ResolveRuntimeDebugPanelReference()
+        {
+            if (_runtimeDebugPanel != null || _canvas == null)
+            {
+                return;
+            }
+
+            var existingPanel = _canvas.transform.Find("Beyond TUIO Debug Panel");
+            if (existingPanel != null)
+            {
+                _runtimeDebugPanel = existingPanel.gameObject;
+            }
         }
 
         private void RefreshRuntimeDebugPanel()
