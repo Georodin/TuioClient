@@ -361,8 +361,8 @@ namespace BeyondFutureOne.TuioClient
                 return;
             }
 
-            var shouldShowRoot = _displayDebugTokens || (_showDetectedTokens && ActiveTokenCount > 0);
-            _tokenRootCanvasGroup.alpha = shouldShowRoot ? 1f : 0f;
+            // F9 / debug pool toggle is the master switch for all debug token visuals, including live detections.
+            _tokenRootCanvasGroup.alpha = _displayDebugTokens ? 1f : 0f;
             _tokenRootCanvasGroup.blocksRaycasts = _displayDebugTokens && _manualInteractionEnabled;
             _tokenRootCanvasGroup.interactable = _displayDebugTokens && _manualInteractionEnabled;
         }

@@ -310,7 +310,8 @@ namespace BeyondFutureOne.TuioClient
                 _label.enabled = shouldRender;
                 var normalizedPosition = GetNormalizedPosition();
                 var rotationDegrees = Mathf.Repeat(_rectTransform.localEulerAngles.z, 360f);
-                _label.text = $"Symbol_ID: {_tokenId}\nposition: {normalizedPosition.x:0.000},{normalizedPosition.y:0.000}\nrotation: {rotationDegrees:0.0} deg\nplaced: {_isManuallyActive.ToString().ToLowerInvariant()}";
+                var placed = _isTuioActive || _isManuallyActive;
+                _label.text = $"Symbol_ID: {_tokenId}\nposition: {normalizedPosition.x:0.000},{normalizedPosition.y:0.000}\nrotation: {rotationDegrees:0.0} deg\nplaced: {placed.ToString().ToLowerInvariant()}";
             }
         }
     }
