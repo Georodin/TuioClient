@@ -133,7 +133,7 @@ namespace BeyondFutureOne.TuioClient.Editor
                     EditorUtility.SetDirty(_adapter);
                 }
 
-                if (GUILayout.Button("Ensure 1-20"))
+                if (GUILayout.Button("Ensure Selected"))
                 {
                     Undo.RecordObject(_adapter, "Ensure TUIO Debug Tokens");
                     _adapter.EnsureTokenPool();

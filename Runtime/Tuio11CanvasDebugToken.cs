@@ -33,7 +33,7 @@ namespace BeyondFutureOne.TuioClient
             get => _tokenId;
             set
             {
-                _tokenId = Mathf.Clamp(value, 1, 20);
+                _tokenId = Mathf.Clamp(value, Tuio11CanvasAdapter.MinSupportedTokenId, Tuio11CanvasAdapter.MaxSupportedTokenId);
                 RefreshVisual();
             }
         }
@@ -62,7 +62,7 @@ namespace BeyondFutureOne.TuioClient
 
         public void Configure(int tokenId, bool manualInteractionEnabled, bool debugVisible, Vector2 labelSize, float labelGap)
         {
-            _tokenId = Mathf.Clamp(tokenId, 1, 20);
+            _tokenId = Mathf.Clamp(tokenId, Tuio11CanvasAdapter.MinSupportedTokenId, Tuio11CanvasAdapter.MaxSupportedTokenId);
             _manualInteractionEnabled = manualInteractionEnabled;
             _debugVisible = debugVisible;
             SetLabelLayout(labelSize, labelGap);

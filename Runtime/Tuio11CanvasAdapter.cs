@@ -10,11 +10,35 @@ using UnityEngine.UI;
 
 namespace BeyondFutureOne.TuioClient
 {
+    [Serializable]
+    public sealed class TuioDebugTokenSelection
+    {
+        private const int AllTokensMask = (1 << Tuio11CanvasAdapter.SupportedTokenCount) - 1;
+
+        [SerializeField] private int _mask = AllTokensMask;
+
+        public bool IsEnabled(int tokenId)
+        {
+            if (tokenId < Tuio11CanvasAdapter.MinSupportedTokenId || tokenId > Tuio11CanvasAdapter.MaxSupportedTokenId)
+            {
+                return false;
+            }
+
+            return (_mask & (1 << (tokenId - Tuio11CanvasAdapter.MinSupportedTokenId))) != 0;
+        }
+
+        public void Validate()
+        {
+            _mask &= AllTokensMask;
+        }
+    }
+
     [DisallowMultipleComponent]
     public sealed class Tuio11CanvasAdapter : MonoBehaviour
     {
-        private const int MinSupportedTokenId = 1;
-        private const int MaxSupportedTokenId = 20;
+        public const int MinSupportedTokenId = 1;
+        public const int MaxSupportedTokenId = 24;
+        public const int SupportedTokenCount = MaxSupportedTokenId - MinSupportedTokenId + 1;
 
         [Header("TUIO")]
         [SerializeField] private BeyondTuio11SessionBehaviour _tuioSessionBehaviour;
@@ -31,8 +55,7 @@ namespace BeyondFutureOne.TuioClient
         [SerializeField] private Vector2 _tokenGridPadding = new Vector2(40f, 32f);
 
         [Header("Debug Tokens")]
-        [SerializeField, Range(MinSupportedTokenId, MaxSupportedTokenId)] private int _firstTokenId = 1;
-        [SerializeField, Range(MinSupportedTokenId, MaxSupportedTokenId)] private int _lastTokenId = 20;
+        [SerializeField, InspectorName("Enabled Token IDs")] private TuioDebugTokenSelection _enabledTokenIds = new TuioDebugTokenSelection();
         [SerializeField] private bool _displayDebugTokens = true;
         [SerializeField] private bool _showDetectedTokens = true;
         [SerializeField] private bool _createMissingTokens = true;
@@ -100,6 +123,7 @@ namespace BeyondFutureOne.TuioClient
 
         private void Awake()
         {
+            EnsureDebugTokenSelection();
             ResolveReferences();
             EnsureTokenRootCanvasGroup();
             EnsureTokenPool();
@@ -238,10 +262,7 @@ namespace BeyondFutureOne.TuioClient
 #endif
         private void OnValidate()
         {
-            if (_firstTokenId > _lastTokenId)
-            {
-                _lastTokenId = _firstTokenId;
-            }
+            EnsureDebugTokenSelection();
 
             _tokenSize.x = Mathf.Max(16f, _tokenSize.x);
             _tokenSize.y = Mathf.Max(16f, _tokenSize.y);
@@ -404,6 +425,7 @@ namespace BeyondFutureOne.TuioClient
 
         public void EnsureTokenPool()
         {
+            EnsureDebugTokenSelection();
             ResolveReferences();
             IndexExistingTokens();
 
@@ -412,9 +434,9 @@ namespace BeyondFutureOne.TuioClient
                 return;
             }
 
-            for (var id = _firstTokenId; id <= _lastTokenId; id++)
+            for (var id = MinSupportedTokenId; id <= MaxSupportedTokenId; id++)
             {
-                if (_tokensBySymbolId.ContainsKey(id))
+                if (!IsDebugTokenEnabled(id) || _tokensBySymbolId.ContainsKey(id))
                 {
                     continue;
                 }
@@ -463,7 +485,7 @@ namespace BeyondFutureOne.TuioClient
             {
                 token.SetLabelLayout(_debugLabelSize, _debugLabelGap);
                 token.SetManualInteractionEnabled(_manualInteractionEnabled);
-                token.SetDebugVisible(_displayDebugTokens && IsTokenInPoolRange(token.TokenId));
+                token.SetDebugVisible(_displayDebugTokens && IsDebugTokenEnabled(token.TokenId));
                 token.SetDetectedVisible(_showDetectedTokens);
 
                 if (!_tokensBySymbolId.ContainsKey(token.TokenId))
@@ -490,7 +512,7 @@ namespace BeyondFutureOne.TuioClient
             }
 
             var token = tokenObject.GetComponent<Tuio11CanvasDebugToken>();
-            token.Configure(tokenId, _manualInteractionEnabled, _displayDebugTokens && IsTokenInPoolRange(tokenId), _debugLabelSize, _debugLabelGap);
+            token.Configure(tokenId, _manualInteractionEnabled, _displayDebugTokens && IsDebugTokenEnabled(tokenId), _debugLabelSize, _debugLabelGap);
             token.SetDetectedVisible(_showDetectedTokens);
             token.SetManualActive(false);
             return token;
@@ -498,13 +520,13 @@ namespace BeyondFutureOne.TuioClient
 
         private Vector2 GetDefaultTokenPosition(int tokenId)
         {
-            var zeroBasedIndex = tokenId - _firstTokenId;
-            var columns = Mathf.CeilToInt(Mathf.Sqrt(_lastTokenId - _firstTokenId + 1));
+            var zeroBasedIndex = tokenId - MinSupportedTokenId;
+            var columns = Mathf.CeilToInt(Mathf.Sqrt(SupportedTokenCount));
             var column = zeroBasedIndex % columns;
             var row = zeroBasedIndex / columns;
             var tokenWithLabelSize = new Vector2(_tokenSize.x + _debugLabelGap + _debugLabelSize.x, Mathf.Max(_tokenSize.y, _debugLabelSize.y));
             var spacing = tokenWithLabelSize + _tokenGridPadding;
-            var totalRows = Mathf.CeilToInt((_lastTokenId - _firstTokenId + 1) / (float)columns);
+            var totalRows = Mathf.CeilToInt(SupportedTokenCount / (float)columns);
             var origin = new Vector2(-(columns - 1) * spacing.x * 0.5f, (totalRows - 1) * spacing.y * 0.5f);
             var tokenCenterOffset = new Vector2(-(_debugLabelGap + _debugLabelSize.x) * 0.5f, 0f);
 
@@ -516,16 +538,26 @@ namespace BeyondFutureOne.TuioClient
             return symbolId >= MinSupportedTokenId && symbolId <= MaxSupportedTokenId && symbolId <= int.MaxValue;
         }
 
-        private bool IsTokenInPoolRange(int tokenId)
+        private bool IsDebugTokenEnabled(int tokenId)
         {
-            return tokenId >= _firstTokenId && tokenId <= _lastTokenId;
+            return _enabledTokenIds != null && _enabledTokenIds.IsEnabled(tokenId);
+        }
+
+        private void EnsureDebugTokenSelection()
+        {
+            if (_enabledTokenIds == null)
+            {
+                _enabledTokenIds = new TuioDebugTokenSelection();
+            }
+
+            _enabledTokenIds.Validate();
         }
 
         private void ApplyTokenPoolVisibility()
         {
             foreach (var pair in _tokensBySymbolId)
             {
-                pair.Value.SetDebugVisible(_displayDebugTokens && IsTokenInPoolRange(pair.Key));
+                pair.Value.SetDebugVisible(_displayDebugTokens && IsDebugTokenEnabled(pair.Key));
             }
         }
 
