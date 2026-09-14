@@ -187,11 +187,25 @@ namespace BeyondFutureOne.TuioClient.Editor
                 scaler.matchWidthOrHeight = 0.5f;
             }
 
-            if (FindObjectOfType<EventSystem>() == null)
+            var eventSystem = FindObjectOfType<EventSystem>();
+            if (eventSystem == null)
             {
                 var eventSystemObject = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
                 Undo.RegisterCreatedObjectUndo(eventSystemObject, "Create EventSystem");
+                eventSystem = eventSystemObject.GetComponent<EventSystem>();
             }
+
+            var touchSimulator = eventSystem.GetComponent<Tuio11UiTouchSimulator>();
+            if (touchSimulator == null)
+            {
+                Undo.AddComponent<Tuio11UiTouchSimulator>(eventSystem.gameObject);
+                touchSimulator = eventSystem.GetComponent<Tuio11UiTouchSimulator>();
+            }
+
+            var simulatorObject = new SerializedObject(touchSimulator);
+            simulatorObject.FindProperty("_tuioSessionBehaviour").objectReferenceValue = session;
+            simulatorObject.FindProperty("_eventSystem").objectReferenceValue = eventSystem;
+            simulatorObject.ApplyModifiedPropertiesWithoutUndo();
 
             var rootObject = new GameObject("TUIO 1.1 Debug Tokens", typeof(RectTransform), typeof(CanvasGroup), typeof(Tuio11CanvasAdapter));
             Undo.RegisterCreatedObjectUndo(rootObject, "Create TUIO Client Adapter");
