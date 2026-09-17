@@ -56,6 +56,8 @@ namespace BeyondFutureOne.TuioClient
 
         [Header("Debug Tokens")]
         [SerializeField, InspectorName("Enabled Token IDs")] private TuioDebugTokenSelection _enabledTokenIds = new TuioDebugTokenSelection();
+        [SerializeField] private bool _activateDebugOnStart = true;
+        [SerializeField] private bool _toggleCursorVisibility = true;
         [SerializeField] private bool _displayDebugTokens = true;
         [SerializeField] private bool _showDetectedTokens = true;
         [SerializeField] private bool _createMissingTokens = true;
@@ -83,6 +85,8 @@ namespace BeyondFutureOne.TuioClient
         public BeyondTuio11SessionBehaviour TuioSessionBehaviour => _tuioSessionBehaviour;
         public Canvas Canvas => _canvas;
         public RectTransform TokenRoot => _tokenRoot;
+        public bool ActivateDebugOnStart => _activateDebugOnStart;
+        public bool ToggleCursorVisibility => _toggleCursorVisibility;
         public bool DisplayDebugTokens => _displayDebugTokens;
         public bool ShowDetectedTokens => _showDetectedTokens;
         public bool HasRecentControllerActivity => _lastObjectEventTime >= 0f && Time.realtimeSinceStartup - _lastObjectEventTime < _recentMessageWindowSeconds;
@@ -127,7 +131,7 @@ namespace BeyondFutureOne.TuioClient
             ResolveReferences();
             EnsureTokenRootCanvasGroup();
             EnsureTokenPool();
-            SetDebugTokensVisible(_displayDebugTokens);
+            SetDebugTokensVisible(_activateDebugOnStart);
             EnsureRuntimeDebugPanel();
             RefreshRuntimeDebugPanel();
         }
@@ -163,6 +167,11 @@ namespace BeyondFutureOne.TuioClient
             }
 
             UnregisterDispatcher();
+
+            if (_toggleCursorVisibility)
+            {
+                Cursor.visible = true;
+            }
         }
 
         private void Update()
@@ -325,8 +334,20 @@ namespace BeyondFutureOne.TuioClient
             EnsureTokenPool();
             ApplyTokenPoolVisibility();
             ApplyRuntimeDebugPanelVisibility();
+            ApplyCursorVisibility();
 
             RefreshRuntimeDebugPanel();
+        }
+
+        private void ApplyCursorVisibility()
+        {
+            if (!_toggleCursorVisibility)
+            {
+                return;
+            }
+
+            // Debug mode on → show OS cursor; debug mode off → hide it (table / kiosk).
+            Cursor.visible = _displayDebugTokens;
         }
 
 
