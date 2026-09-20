@@ -308,6 +308,11 @@ namespace BeyondFutureOne.TuioClient
                 return;
             }
 
+            if (_dispatcher == null)
+            {
+                return;
+            }
+
             _dispatcher.OnObjectAdd += HandleObjectAdd;
             _dispatcher.OnObjectUpdate += HandleObjectUpdate;
             _dispatcher.OnObjectRemove += HandleObjectRemove;

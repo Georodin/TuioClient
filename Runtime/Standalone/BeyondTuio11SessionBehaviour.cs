@@ -18,13 +18,19 @@ namespace BeyondFutureOne.TuioClient
         private BeyondTuioUnityLogger _logger;
         private Exception _lastException;
         private float _lastMessageRealtime = -1f;
+        private bool _isDisposing;
+        private bool _shutdownHandlersRegistered;
 
         public ITuioDispatcher TuioDispatcher
         {
             get
             {
-                EnsureSession();
-                return _session.TuioDispatcher;
+                if (_session == null && CanCreateSession)
+                {
+                    EnsureSession();
+                }
+
+                return _session != null ? _session.TuioDispatcher : null;
             }
         }
 
@@ -36,9 +42,17 @@ namespace BeyondFutureOne.TuioClient
         public string Endpoint => $"{ConnectionType} {_ipAddress}:{UdpPort}";
         public bool HasRecentMessages(float activeWindowSeconds) => _lastMessageRealtime >= 0f && Time.realtimeSinceStartup - _lastMessageRealtime <= activeWindowSeconds;
 
+        private bool CanCreateSession => !_isDisposing && Application.isPlaying && isActiveAndEnabled;
+
         private void Awake()
         {
             TuioVersion = TuioNet.Common.TuioVersion.Tuio11;
+        }
+
+        private void OnEnable()
+        {
+            RegisterShutdownHandlers();
+            _isDisposing = false;
 
             if (_startOnAwake)
             {
@@ -71,8 +85,14 @@ namespace BeyondFutureOne.TuioClient
 
         public void Restart()
         {
-            DisposeSession();
+            Stop();
+            _isDisposing = false;
             EnsureSession();
+        }
+
+        public void Stop()
+        {
+            DisposeSession();
         }
 
         public void MarkMessageReceived()
@@ -83,7 +103,7 @@ namespace BeyondFutureOne.TuioClient
 
         private void EnsureSession()
         {
-            if (_session != null)
+            if (_session != null || !CanCreateSession)
             {
                 return;
             }
@@ -98,20 +118,67 @@ namespace BeyondFutureOne.TuioClient
             DisposeSession();
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
+            UnregisterShutdownHandlers();
             DisposeSession();
         }
 
-        private void DisposeSession()
+        private void OnDestroy()
         {
-            if (_session == null)
+            UnregisterShutdownHandlers();
+            DisposeSession();
+        }
+
+        private void RegisterShutdownHandlers()
+        {
+            if (_shutdownHandlersRegistered)
             {
                 return;
             }
 
-            _session.Dispose();
+            Application.quitting += DisposeSession;
+            _shutdownHandlersRegistered = true;
+        }
+
+        private void UnregisterShutdownHandlers()
+        {
+            if (!_shutdownHandlersRegistered)
+            {
+                return;
+            }
+
+            Application.quitting -= DisposeSession;
+            _shutdownHandlersRegistered = false;
+        }
+
+        private void DisposeSession()
+        {
+            _isDisposing = true;
+
+            var session = _session;
+            var port = UdpPort;
+            var connectionType = ConnectionType;
             _session = null;
+
+            if (session == null)
+            {
+                return;
+            }
+
+            try
+            {
+                session.Dispose();
+            }
+            catch (Exception exception)
+            {
+                _lastException = exception;
+            }
+
+            if (connectionType == TuioConnectionType.UDP)
+            {
+                TuioUdpPortReleaser.Release(port);
+            }
         }
     }
 }

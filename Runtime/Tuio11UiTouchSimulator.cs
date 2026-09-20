@@ -133,6 +133,11 @@ namespace BeyondFutureOne.TuioClient
                 return;
             }
 
+            if (_dispatcher == null)
+            {
+                return;
+            }
+
             _dispatcher.OnCursorAdd += HandleCursorAdd;
             _dispatcher.OnCursorUpdate += HandleCursorUpdate;
             _dispatcher.OnCursorRemove += HandleCursorRemove;
